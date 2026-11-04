@@ -10,7 +10,6 @@ try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     df_config = conn.read(worksheet="Configuracion").dropna(how="all")
     df_equipos = conn.read(worksheet="Equipos").dropna(how="all")
-    # Intentamos leer la pestaña de jugadores, si no existe o está vacía, la iniciamos vacía
     try:
         df_jugadores = conn.read(worksheet="Jugadores").dropna(how="all")
     except:
@@ -43,7 +42,7 @@ if menu == "🏠 Lobby Público":
             
             col1, col2 = st.columns(2)
             with col1:
-                st.write("**Categorías en juego (Años):**")
+                st.write("**Categorías y Formatos en juego:**")
                 categorias_copa = df_config[df_config['Nombre_Copa'] == copa_seleccionada]
                 st.dataframe(categorias_copa[['Categoria', 'Formato']], hide_index=True, use_container_width=True)
                 
@@ -65,55 +64,71 @@ if menu == "🏠 Lobby Público":
 elif menu == "⚙️ Panel Staff (Admin)":
     st.subheader("Consola de Control del Torneo")
     
-    tab1, tab2 = st.tabs(["🏆 Crear Múltiples Categorías", "⚽ Inscribir Equipo"])
+    tab1, tab2 = st.tabs(["🏆 Configurar Torneo y Categorías", "⚽ Inscribir Equipo"])
     
     with tab1:
-        st.write("Selecciona la sede, el torneo y marca **todas las categorías** que jugarán en simultáneo.")
+        st.write("Crea las categorías del torneo indicando su formato independiente (Grupos o Liga).")
         
-        with st.form("form_categorias_multiples"):
+        with st.form("form_crear_copa_detalle"):
             sede_input = st.selectbox("Sede / Ciudad Principal", ["Angol", "Máfil", "Valdivia"])
             nombre_personalizado = st.text_input("Nombre del Torneo / Copa (ej: Mafil Cup 2025, Copa Invierno)")
             
             nombre_copa_final = f"{sede_input} - {nombre_personalizado}" if nombre_personalizado else sede_input
             
-            st.write("**Selecciona las categorías que participan:**")
-            cat_1 = st.checkbox("2019 / 2018")
-            cat_2 = st.checkbox("2017 / 2016")
-            cat_3 = st.checkbox("2015 / 2014")
-            cat_4 = st.checkbox("2013 / 2012")
-            cat_5 = st.checkbox("2011 / 2010")
+            st.markdown("---")
+            st.write("### Asigna el formato para cada categoría participante:")
             
-            categoria_extra = st.text_input("Otra categoría adicional (opcional, ej: Sub-8 o 2008-2009)")
-            nuevo_formato = st.selectbox("Formato general para estas categorías", ["Grupos", "Liga"])
+            # Categoría 1
+            c1_on = st.checkbox("Categoría 2018 / 2019")
+            c1_formato = st.selectbox("Formato para 2018/2019", ["Grupos", "Liga"], key="f1")
             
-            submit_copa = st.form_submit_button("Crear Todas las Seleccionadas")
+            # Categoría 2
+            c2_on = st.checkbox("Categoría 2016 / 2017")
+            c2_formato = st.selectbox("Formato para 2016/2017", ["Grupos", "Liga"], key="f2")
             
-            if submit_copa:
-                lista_nuevas = []
-                if cat_1: lista_nuevas.append("2019/2018")
-                if cat_2: lista_nuevas.append("2017/2016")
-                if cat_3: lista_nuevas.append("2015/2014")
-                if cat_4: lista_nuevas.append("2013/2012")
-                if cat_5: lista_nuevas.append("2011/2010")
-                if categoria_extra.strip(): lista_nuevas.append(categoria_extra.strip())
+            # Categoría 3
+            c3_on = st.checkbox("Categoría 2014 / 2015")
+            c3_formato = st.selectbox("Formato para 2014/2015", ["Grupos", "Liga"], key="f3")
+            
+            # Categoría 4
+            c4_on = st.checkbox("Categoría 2012 / 2013")
+            c4_formato = st.selectbox("Formato para 2012/2013", ["Grupos", "Liga"], key="f4")
+            
+            # Categoría 5
+            c5_on = st.checkbox("Categoría 2010 / 2011")
+            c5_formato = st.selectbox("Formato para 2010/2011", ["Grupos", "Liga"], key="f5")
+            
+            # Extra personalizada
+            cat_extra_nombre = st.text_input("Otra categoría personalizada (opcional, ej: Sub-8)")
+            cat_extra_formato = st.selectbox("Formato categoría personalizada", ["Grupos", "Liga"], key="f_extra")
+            
+            submit_creacion = st.form_submit_button("Guardar Torneo y Categorías")
+            
+            if submit_creacion:
+                nuevos_registros = []
                 
-                if lista_nuevas and nombre_personalizado:
-                    nuevos_registros = []
-                    for c in lista_nuevas:
-                        nuevos_registros.append({
-                            "Nombre_Copa": nombre_copa_final.strip(),
-                            "Categoria": c,
-                            "Formato": nuevo_formato
-                        })
-                    
+                if c1_on:
+                    nuevos_registros.append({"Nombre_Copa": nombre_copa_final, "Categoria": "2018/2019", "Formato": c1_formato})
+                if c2_on:
+                    nuevos_registros.append({"Nombre_Copa": nombre_copa_final, "Categoria": "2016/2017", "Formato": c2_formato})
+                if c3_on:
+                    nuevos_registros.append({"Nombre_Copa": nombre_copa_final, "Categoria": "2014/2015", "Formato": c3_formato})
+                if c4_on:
+                    nuevos_registros.append({"Nombre_Copa": nombre_copa_final, "Categoria": "2012/2013", "Formato": c4_formato})
+                if c5_on:
+                    nuevos_registros.append({"Nombre_Copa": nombre_copa_final, "Categoria": "2010/2011", "Formato": c5_formato})
+                if cat_extra_nombre.strip():
+                    nuevos_registros.append({"Nombre_Copa": nombre_copa_final, "Categoria": cat_extra_nombre.strip(), "Formato": cat_extra_formato})
+                
+                if nuevos_registros and nombre_personalizado:
                     df_nuevo = pd.DataFrame(nuevos_registros)
                     df_actual = df_config.copy()
                     df_actual = pd.concat([df_actual, df_nuevo], ignore_index=True)
                     conn.update(worksheet="Configuracion", data=df_actual)
-                    st.success(f"¡Se han creado {len(lista_nuevas)} categorías para {nombre_copa_final} exitosamente!")
+                    st.success(f"¡Torneo '{nombre_copa_final}' guardado con sus respectivas categorías y formatos!")
                     st.rerun()
                 else:
-                    st.warning("Debes poner un nombre de torneo y marcar al menos una categoría.")
+                    st.warning("Debes ingresar el nombre del torneo y seleccionar al menos una categoría.")
                 
     with tab2:
         st.write("Inscribe a los clubes y asigna sus grupos.")
@@ -142,14 +157,13 @@ elif menu == "⚙️ Panel Staff (Admin)":
                     st.success(f"¡{nombre_equipo} inscrito correctamente!")
                     st.rerun()
         else:
-            st.info("Primero debes crear al menos una categoría en la pestaña anterior.")
+            st.info("Primero debes configurar un torneo en la pestaña anterior.")
 
 elif menu == "📝 Portal Profesores":
     st.subheader("📝 Inscripción Digital de Planteles (Profesores / DT)")
     st.write("Registra la nómina oficial de jugadores de tu club para el torneo.")
     
     if not df_equipos.empty:
-        # Selección guiada para el profesor
         copa_dt = st.selectbox("1. Selecciona el Torneo:", df_equipos['Copa'].dropna().unique())
         
         cats_dt = df_equipos[df_equipos['Copa'] == copa_dt]['Categoria'].dropna().unique()
@@ -163,7 +177,6 @@ elif menu == "📝 Portal Profesores":
             st.divider()
             st.markdown(f"### Nómina para: **{equipo_dt}** ({cat_dt})")
             
-            # Formulario para ingresar jugador
             with st.form("form_ingresar_jugador", clear_on_submit=True):
                 col_a, col_b = st.columns([3, 1])
                 with col_a:
@@ -185,10 +198,9 @@ elif menu == "📝 Portal Profesores":
                     df_j_actual = df_jugadores.copy()
                     df_j_actual = pd.concat([df_j_actual, nuevo_j], ignore_index=True)
                     conn.update(worksheet="Jugadores", data=df_j_actual)
-                    st.success(f"¡Jugador {nombre_jugador} (#{dorsal_jugador}) agregado a la plantilla!")
+                    st.success(f"¡Jugador {nombre_jugador} (#{dorsal_jugador}) agregado!")
                     st.rerun()
             
-            # Mostrar la nómina actual del equipo
             st.write("**Plantel Inscrito Hasta el Momento:**")
             if not df_jugadores.empty:
                 plantel_actual = df_jugadores[
@@ -205,5 +217,4 @@ elif menu == "📝 Portal Profesores":
         else:
             st.warning("No hay equipos inscritos en esta categoría todavía.")
     else:
-        st.info("Aún no hay equipos registrados en el sistema para que los profesores puedan inscribir planteles.")
-        
+        st.info("Aún no hay equipos registrados en el sistema.")
