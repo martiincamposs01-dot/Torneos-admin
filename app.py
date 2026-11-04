@@ -25,14 +25,12 @@ if menu == "🏠 Lobby Público":
     st.subheader("Bienvenido al Portal de Resultados")
     
     if not df_config.empty:
-        # Selector principal por Sede (Angol, Máfil, Valdivia, etc.)
         sedes_disponibles = ['Angol', 'Máfil', 'Valdivia']
         sede_seleccionada = st.selectbox("📍 Selecciona la Sede / Ciudad:", sedes_disponibles)
         
         st.divider()
         st.markdown(f"### 🏟️ Torneos activos en: {sede_seleccionada}")
         
-        # Filtramos las copas que coincidan con la sede seleccionada
         copas_sede = df_config[df_config['Nombre_Copa'].str.contains(sede_seleccionada, case=False, na=False)]
         
         if not copas_sede.empty:
@@ -62,32 +60,59 @@ if menu == "🏠 Lobby Público":
 elif menu == "⚙️ Panel Staff (Admin)":
     st.subheader("Consola de Control del Torneo")
     
-    tab1, tab2 = st.tabs(["🏆 Crear Categoría por Sede", "⚽ Inscribir Equipo"])
+    tab1, tab2 = st.tabs(["🏆 Crear Múltiples Categorías", "⚽ Inscribir Equipo"])
     
     with tab1:
-        st.write("Configura las categorías (años de nacimiento) seleccionando primero la sede.")
-        with st.form("form_nueva_copa"):
+        st.write("Selecciona la sede, el torneo y marca **todas las categorías** que jugarán en simultáneo.")
+        
+        with st.form("form_categorias_multiples"):
             sede_input = st.selectbox("Sede / Ciudad Principal", ["Angol", "Máfil", "Valdivia"])
-            nombre_personalizado = st.text_input("Nombre del Torneo / Copa (ej: Mafil Cup 2025, Copa Invierno Angol)")
+            nombre_personalizado = st.text_input("Nombre del Torneo / Copa (ej: Mafil Cup 2025, Copa Invierno)")
             
-            # Combinamos automáticamente la sede con el nombre para que el filtro funcione perfecto
             nombre_copa_final = f"{sede_input} - {nombre_personalizado}" if nombre_personalizado else sede_input
             
-            nueva_categoria = st.text_input("Categoría / Años (ej: 2011-2012 o 2017/2018)")
-            nuevo_formato = st.selectbox("Formato", ["Grupos", "Liga"])
-            submit_copa = st.form_submit_button("Crear y Guardar")
+            st.write("**Selecciona las categorías que participan:**")
+            cat_1 = st.checkbox("2019 / 2018")
+            cat_2 = st.checkbox("2017 / 2016")
+            cat_3 = st.checkbox("2015 / 2014")
+            cat_4 = st.checkbox("2013 / 2012")
+            cat_5 = st.checkbox("2011 / 2010")
             
-            if submit_copa and nueva_categoria:
-                nuevo_registro = pd.DataFrame([{
-                    "Nombre_Copa": nombre_copa_final.strip(),
-                    "Categoria": nueva_categoria.strip(),
-                    "Formato": nuevo_formato
-                }])
-                df_actual = df_config.copy()
-                df_actual = pd.concat([df_actual, nuevo_registro], ignore_index=True)
-                conn.update(worksheet="Configuracion", data=df_actual)
-                st.success(f"¡Categoría {nueva_categoria} agregada a {nombre_copa_final}!")
-                st.rerun()
+            # Opción por si necesita agregar una categoría extra de texto libre
+            categoria_extra = st.text_input("Otra categoría adicional (opcional, ej: Sub-8 o 2008-2009)")
+            
+            nuevo_formato = st.selectbox("Formato general para estas categorías", ["Grupos", "Liga"])
+            
+            submit_copa = st.form_submit_button("Crear Todas las Seleccionadas")
+            
+            if submit_copa:
+                lista_nuevas = []
+                if cat_1: lista_nuevas.append("2019/2018")
+                if cat_2: lista_nuevas.append("2017/2016")
+                if cat_3: lista_nuevas.append("2015/2014")
+                if cat_4: lista_nuevas.append("2013/2012")
+                if cat_5: lista_nuevas.append("2011/2010")
+                if categoria_extra.strip(): lista_nuevas.append(categoria_extra.strip())
+                
+                if lista_nuevas and nombre_personalizado:
+                    # Creamos filas para cada categoría seleccionada de una sola vez
+                    nuevos_registros = []
+                    for c in lista_nuevas:
+                        nuevos_registros.append({
+                            "Nombre_Copa": nombre_copa_final.strip(),
+                            "Categoria": c,
+                            "Formato": nuevo_formato
+                        })
+                    
+                    df_nuevo = pd.DataFrame(nuevos_registros)
+                    df_actual = df_config.copy()
+                    df_actual = pd.concat([df_actual, df_nuevo], ignore_index=True)
+                    conn.update(worksheet="Configuracion", data=df_actual)
+                    
+                    st.success(f"¡Se han creado {len(lista_nuevas)} categorías para {nombre_copa_final} exitosamente!")
+                    st.rerun()
+                else:
+                    st.warning("Debes poner un nombre de torneo y marcar al menos una categoría.")
                 
     with tab2:
         st.write("Inscribe a los clubes y asigna sus grupos.")
