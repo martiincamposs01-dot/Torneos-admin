@@ -8,10 +8,18 @@ st.title("🏆 Plataforma Central de Torneos")
 # 1. CONEXIÓN A GOOGLE SHEETS
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
-    df_config = conn.read(worksheet="Configuracion").dropna(how="all")
-    df_equipos = conn.read(worksheet="Equipos").dropna(how="all")
+    df_config = conn.read(worksheet="Configuracion")
+    if df_config is None or df_config.empty:
+        df_config = pd.DataFrame(columns=["Nombre_Copa", "Categoria", "Formato"])
+    
+    df_equipos = conn.read(worksheet="Equipos")
+    if df_equipos is None or df_equipos.empty:
+        df_equipos = pd.DataFrame(columns=["Copa", "Categoria", "Grupo", "Nombre_Equipo"])
+        
     try:
-        df_jugadores = conn.read(worksheet="Jugadores").dropna(how="all")
+        df_jugadores = conn.read(worksheet="Jugadores")
+        if df_jugadores is None or df_jugadores.empty:
+            df_jugadores = pd.DataFrame(columns=["Copa", "Categoria", "Equipo", "Nombre_Jugador", "Dorsal", "Goles"])
     except:
         df_jugadores = pd.DataFrame(columns=["Copa", "Categoria", "Equipo", "Nombre_Jugador", "Dorsal", "Goles"])
 except Exception as e:
@@ -28,14 +36,15 @@ menu = st.sidebar.selectbox(
 if menu == "🏠 Lobby Público":
     st.subheader("Bienvenido al Portal de Resultados")
     
-    if not df_config.empty:
+    df_config_clean = df_config.dropna(how="all")
+    if not df_config_clean.empty:
         sedes_disponibles = ['Angol', 'Máfil', 'Valdivia']
         sede_seleccionada = st.selectbox("📍 Selecciona la Sede / Ciudad:", sedes_disponibles)
         
         st.divider()
         st.markdown(f"### 🏟️ Torneos activos en: {sede_seleccionada}")
         
-        copas_sede = df_config[df_config['Nombre_Copa'].str.contains(sede_seleccionada, case=False, na=False)]
+        copas_sede = df_config_clean[df_config_clean['Nombre_Copa'].astype(str).str.contains(sede_seleccionada, case=False, na=False)]
         
         if not copas_sede.empty:
             copa_seleccionada = st.selectbox("Selecciona el Torneo específico:", copas_sede['Nombre_Copa'].unique())
@@ -43,13 +52,14 @@ if menu == "🏠 Lobby Público":
             col1, col2 = st.columns(2)
             with col1:
                 st.write("**Categorías y Formatos en juego:**")
-                categorias_copa = df_config[df_config['Nombre_Copa'] == copa_seleccionada]
+                categorias_copa = df_config_clean[df_config_clean['Nombre_Copa'] == copa_seleccionada]
                 st.dataframe(categorias_copa[['Categoria', 'Formato']], hide_index=True, use_container_width=True)
                 
             with col2:
                 st.write("**Equipos Inscritos:**")
-                if not df_equipos.empty:
-                    equipos_copa = df_equipos[df_equipos['Copa'] == copa_seleccionada]
+                df_equipos_clean = df_equipos.dropna(how="all")
+                if not df_equipos_clean.empty:
+                    equipos_copa = df_equipos_clean[df_equipos_clean['Copa'] == copa_seleccionada]
                     if not equipos_copa.empty:
                         st.dataframe(equipos_copa[['Categoria', 'Grupo', 'Nombre_Equipo']], hide_index=True, use_container_width=True)
                     else:
@@ -78,27 +88,21 @@ elif menu == "⚙️ Panel Staff (Admin)":
             st.markdown("---")
             st.write("### Asigna el formato para cada categoría participante:")
             
-            # Categoría 1
             c1_on = st.checkbox("Categoría 2018 / 2019")
             c1_formato = st.selectbox("Formato para 2018/2019", ["Grupos", "Liga"], key="f1")
             
-            # Categoría 2
             c2_on = st.checkbox("Categoría 2016 / 2017")
             c2_formato = st.selectbox("Formato para 2016/2017", ["Grupos", "Liga"], key="f2")
             
-            # Categoría 3
             c3_on = st.checkbox("Categoría 2014 / 2015")
             c3_formato = st.selectbox("Formato para 2014/2015", ["Grupos", "Liga"], key="f3")
             
-            # Categoría 4
             c4_on = st.checkbox("Categoría 2012 / 2013")
             c4_formato = st.selectbox("Formato para 2012/2013", ["Grupos", "Liga"], key="f4")
             
-            # Categoría 5
             c5_on = st.checkbox("Categoría 2010 / 2011")
             c5_formato = st.selectbox("Formato para 2010/2011", ["Grupos", "Liga"], key="f5")
             
-            # Extra personalizada
             cat_extra_nombre = st.text_input("Otra categoría personalizada (opcional, ej: Sub-8)")
             cat_extra_formato = st.selectbox("Formato categoría personalizada", ["Grupos", "Liga"], key="f_extra")
             
@@ -122,8 +126,7 @@ elif menu == "⚙️ Panel Staff (Admin)":
                 
                 if nuevos_registros and nombre_personalizado:
                     df_nuevo = pd.DataFrame(nuevos_registros)
-                    df_actual = df_config.copy()
-                    df_actual = pd.concat([df_actual, df_nuevo], ignore_index=True)
+                    df_actual = pd.concat([df_config.dropna(how="all"), df_nuevo], ignore_index=True)
                     conn.update(worksheet="Configuracion", data=df_actual)
                     st.success(f"¡Torneo '{nombre_copa_final}' guardado con sus respectivas categorías y formatos!")
                     st.rerun()
@@ -132,11 +135,12 @@ elif menu == "⚙️ Panel Staff (Admin)":
                 
     with tab2:
         st.write("Inscribe a los clubes y asigna sus grupos.")
-        if not df_config.empty:
-            lista_copas = df_config['Nombre_Copa'].dropna().unique()
+        df_config_clean = df_config.dropna(how="all")
+        if not df_config_clean.empty:
+            lista_copas = df_config_clean['Nombre_Copa'].dropna().unique()
             copa_eq = st.selectbox("Seleccionar Torneo / Sede:", lista_copas)
             
-            categorias_disponibles = df_config[df_config['Nombre_Copa'] == copa_eq]['Categoria'].unique()
+            categorias_disponibles = df_config_clean[df_config_clean['Nombre_Copa'] == copa_eq]['Categoria'].unique()
             categoria_eq = st.selectbox("Seleccionar Categoría (Años):", categorias_disponibles)
             
             with st.form("form_nuevo_equipo"):
@@ -151,8 +155,7 @@ elif menu == "⚙️ Panel Staff (Admin)":
                         "Grupo": grupo_eq.strip().upper(),
                         "Nombre_Equipo": nombre_equipo.strip()
                     }])
-                    df_eq_actual = df_equipos.copy()
-                    df_eq_actual = pd.concat([df_eq_actual, nuevo_eq], ignore_index=True)
+                    df_eq_actual = pd.concat([df_equipos.dropna(how="all"), nuevo_eq], ignore_index=True)
                     conn.update(worksheet="Equipos", data=df_eq_actual)
                     st.success(f"¡{nombre_equipo} inscrito correctamente!")
                     st.rerun()
@@ -163,13 +166,14 @@ elif menu == "📝 Portal Profesores":
     st.subheader("📝 Inscripción Digital de Planteles (Profesores / DT)")
     st.write("Registra la nómina oficial de jugadores de tu club para el torneo.")
     
-    if not df_equipos.empty:
-        copa_dt = st.selectbox("1. Selecciona el Torneo:", df_equipos['Copa'].dropna().unique())
+    df_equipos_clean = df_equipos.dropna(how="all")
+    if not df_equipos_clean.empty:
+        copa_dt = st.selectbox("1. Selecciona el Torneo:", df_equipos_clean['Copa'].dropna().unique())
         
-        cats_dt = df_equipos[df_equipos['Copa'] == copa_dt]['Categoria'].dropna().unique()
+        cats_dt = df_equipos_clean[df_equipos_clean['Copa'] == copa_dt]['Categoria'].dropna().unique()
         cat_dt = st.selectbox("2. Selecciona la Categoría:", cats_dt)
         
-        eqs_dt = df_equipos[(df_equipos['Copa'] == copa_dt) & (df_equipos['Categoria'] == cat_dt)]['Nombre_Equipo'].dropna().unique()
+        eqs_dt = df_equipos_clean[(df_equipos_clean['Copa'] == copa_dt) & (df_equipos_clean['Categoria'] == cat_dt)]['Nombre_Equipo'].dropna().unique()
         
         if len(eqs_dt) > 0:
             equipo_dt = st.selectbox("3. Selecciona tu Club / Equipo:", eqs_dt)
@@ -195,18 +199,18 @@ elif menu == "📝 Portal Profesores":
                         "Dorsal": int(dorsal_jugador),
                         "Goles": 0
                     }])
-                    df_j_actual = df_jugadores.copy()
-                    df_j_actual = pd.concat([df_j_actual, nuevo_j], ignore_index=True)
+                    df_j_actual = pd.concat([df_jugadores.dropna(how="all"), nuevo_j], ignore_index=True)
                     conn.update(worksheet="Jugadores", data=df_j_actual)
                     st.success(f"¡Jugador {nombre_jugador} (#{dorsal_jugador}) agregado!")
                     st.rerun()
             
             st.write("**Plantel Inscrito Hasta el Momento:**")
-            if not df_jugadores.empty:
-                plantel_actual = df_jugadores[
-                    (df_jugadores['Copa'] == copa_dt) & 
-                    (df_jugadores['Categoria'] == cat_dt) & 
-                    (df_jugadores['Equipo'] == equipo_dt)
+            df_jugadores_clean = df_jugadores.dropna(how="all")
+            if not df_jugadores_clean.empty:
+                plantel_actual = df_jugadores_clean[
+                    (df_jugadores_clean['Copa'] == copa_dt) & 
+                    (df_jugadores_clean['Categoria'] == cat_dt) & 
+                    (df_jugadores_clean['Equipo'] == equipo_dt)
                 ]
                 if not plantel_actual.empty:
                     st.dataframe(plantel_actual[['Dorsal', 'Nombre_Jugador']], hide_index=True, use_container_width=True)
