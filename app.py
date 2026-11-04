@@ -10,6 +10,11 @@ try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     df_config = conn.read(worksheet="Configuracion").dropna(how="all")
     df_equipos = conn.read(worksheet="Equipos").dropna(how="all")
+    # Intentamos leer la pestaña de jugadores, si no existe o está vacía, la iniciamos vacía
+    try:
+        df_jugadores = conn.read(worksheet="Jugadores").dropna(how="all")
+    except:
+        df_jugadores = pd.DataFrame(columns=["Copa", "Categoria", "Equipo", "Nombre_Jugador", "Dorsal", "Goles"])
 except Exception as e:
     st.error(f"Error al conectar con Google Sheets: {e}")
     st.stop()
@@ -78,9 +83,7 @@ elif menu == "⚙️ Panel Staff (Admin)":
             cat_4 = st.checkbox("2013 / 2012")
             cat_5 = st.checkbox("2011 / 2010")
             
-            # Opción por si necesita agregar una categoría extra de texto libre
             categoria_extra = st.text_input("Otra categoría adicional (opcional, ej: Sub-8 o 2008-2009)")
-            
             nuevo_formato = st.selectbox("Formato general para estas categorías", ["Grupos", "Liga"])
             
             submit_copa = st.form_submit_button("Crear Todas las Seleccionadas")
@@ -95,7 +98,6 @@ elif menu == "⚙️ Panel Staff (Admin)":
                 if categoria_extra.strip(): lista_nuevas.append(categoria_extra.strip())
                 
                 if lista_nuevas and nombre_personalizado:
-                    # Creamos filas para cada categoría seleccionada de una sola vez
                     nuevos_registros = []
                     for c in lista_nuevas:
                         nuevos_registros.append({
@@ -108,7 +110,6 @@ elif menu == "⚙️ Panel Staff (Admin)":
                     df_actual = df_config.copy()
                     df_actual = pd.concat([df_actual, df_nuevo], ignore_index=True)
                     conn.update(worksheet="Configuracion", data=df_actual)
-                    
                     st.success(f"¡Se han creado {len(lista_nuevas)} categorías para {nombre_copa_final} exitosamente!")
                     st.rerun()
                 else:
@@ -144,5 +145,64 @@ elif menu == "⚙️ Panel Staff (Admin)":
             st.info("Primero debes crear al menos una categoría en la pestaña anterior.")
 
 elif menu == "📝 Portal Profesores":
-    st.subheader("Inscripción Digital de Planteles")
-    st.info("Próximamente: Formulario para que los DTs ingresen a sus jugadores.")
+    st.subheader("📝 Inscripción Digital de Planteles (Profesores / DT)")
+    st.write("Registra la nómina oficial de jugadores de tu club para el torneo.")
+    
+    if not df_equipos.empty:
+        # Selección guiada para el profesor
+        copa_dt = st.selectbox("1. Selecciona el Torneo:", df_equipos['Copa'].dropna().unique())
+        
+        cats_dt = df_equipos[df_equipos['Copa'] == copa_dt]['Categoria'].dropna().unique()
+        cat_dt = st.selectbox("2. Selecciona la Categoría:", cats_dt)
+        
+        eqs_dt = df_equipos[(df_equipos['Copa'] == copa_dt) & (df_equipos['Categoria'] == cat_dt)]['Nombre_Equipo'].dropna().unique()
+        
+        if len(eqs_dt) > 0:
+            equipo_dt = st.selectbox("3. Selecciona tu Club / Equipo:", eqs_dt)
+            
+            st.divider()
+            st.markdown(f"### Nómina para: **{equipo_dt}** ({cat_dt})")
+            
+            # Formulario para ingresar jugador
+            with st.form("form_ingresar_jugador", clear_on_submit=True):
+                col_a, col_b = st.columns([3, 1])
+                with col_a:
+                    nombre_jugador = st.text_input("Nombre y Apellido del Jugador")
+                with col_b:
+                    dorsal_jugador = st.number_input("Dorsal (N°)", min_value=1, max_value=99, value=1)
+                
+                submit_jugador = st.form_submit_button("Agregar Jugador a la Nómina")
+                
+                if submit_jugador and nombre_jugador:
+                    nuevo_j = pd.DataFrame([{
+                        "Copa": copa_dt,
+                        "Categoria": cat_dt,
+                        "Equipo": equipo_dt,
+                        "Nombre_Jugador": nombre_jugador.strip(),
+                        "Dorsal": int(dorsal_jugador),
+                        "Goles": 0
+                    }])
+                    df_j_actual = df_jugadores.copy()
+                    df_j_actual = pd.concat([df_j_actual, nuevo_j], ignore_index=True)
+                    conn.update(worksheet="Jugadores", data=df_j_actual)
+                    st.success(f"¡Jugador {nombre_jugador} (#{dorsal_jugador}) agregado a la plantilla!")
+                    st.rerun()
+            
+            # Mostrar la nómina actual del equipo
+            st.write("**Plantel Inscrito Hasta el Momento:**")
+            if not df_jugadores.empty:
+                plantel_actual = df_jugadores[
+                    (df_jugadores['Copa'] == copa_dt) & 
+                    (df_jugadores['Categoria'] == cat_dt) & 
+                    (df_jugadores['Equipo'] == equipo_dt)
+                ]
+                if not plantel_actual.empty:
+                    st.dataframe(plantel_actual[['Dorsal', 'Nombre_Jugador']], hide_index=True, use_container_width=True)
+                else:
+                    st.info("Aún no hay jugadores inscritos en este equipo.")
+            else:
+                st.info("Aún no hay jugadores registrados en el sistema.")
+        else:
+            st.warning("No hay equipos inscritos en esta categoría todavía.")
+    else:
+        st.info("Aún no hay equipos registrados en el sistema para que los profesores puedan inscribir planteles.")
