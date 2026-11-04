@@ -206,3 +206,4 @@ elif menu == "📝 Portal Profesores":
             st.warning("No hay equipos inscritos en esta categoría todavía.")
     else:
         st.info("Aún no hay equipos registrados en el sistema para que los profesores puedan inscribir planteles.")
+        
